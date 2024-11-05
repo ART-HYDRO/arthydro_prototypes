@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Management System</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --background-color: #f3f4f6;
+            --text-color: #1f2937;
+            --error-color: #dc2626;
+            --success-color: #059669;
+        }
+
+        body {
+            background-color: var(--background-color);
+            min-height: 100vh;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 250px 1fr 300px;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            background-color: white;
+            padding: 1rem;
+            border-right: 1px solid #e5e7eb;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            cursor: pointer;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover {
+            background-color: var(--background-color);
+        }
+
+        .nav-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .main-content {
+            padding: 1rem;
+            position: relative;
+        }
+
+        #map-container {
+            height: calc(100vh - 120px);
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .details-panel {
+            background-color: white;
+            padding: 1rem;
+            border-left: 1px solid #e5e7eb;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            margin: 0.5rem 0;
+            width: 100%;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .device-details {
+            margin-top: 1rem;
+        }
+
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .status-indicator {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+        }
+
+        .status-active {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .status-offline {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .search-bar {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .custom-marker {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            cursor: pointer;
+        }
+
+        .tank-marker {
+            background-color: #2563eb;
+        }
+
+        .pipeline-marker {
+            background-color: #1e40af;
+        }
+
+        .analytics-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .alerts-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .alert-item {
+            background: white;
+            margin: 0.5rem 0;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--error-color);
+        }
+
+        .alert-item.high {
+            border-left-color: var(--error-color);
+        }
+
+        .alert-item.medium {
+            border-left-color: #eab308;
+        }
+
+        .alert-item.low {
+            border-left-color: #3b82f6;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1100;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            cursor: pointer;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="dashboard" class="dashboard">
+        <div class="sidebar">
+            <h2>Pipeline Dashboard</h2>
+            <div class="nav-item active" onclick="showPage('devices')">Devices</div>
+            <div class="nav-item" onclick="showPage('analytics')">Analytics</div>
+            <div class="nav-item" onclick="showPage('alerts')">Alerts</div>
+            <div class="controls">
+                <button class="btn" onclick="openAddDeviceModal()">Add Device</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Devices Page -->
+            <div id="devices-page">
+                <input type="text" class="search-bar" placeholder="Search devices..." onkeyup="searchDevices(this.value)">
+                <div id="map-container"></div>
+            </div>
+
+            <!-- Analytics Page -->
+            <div id="analytics-page" style="display: none;">
+                <div class="analytics-container">
+                    <div class="chart-container">
+                        <canvas id="pressureChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="temperatureChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="maintenanceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts Page -->
+            <div id="alerts-page" style="display: none;">
+                <div class="alerts-list" id="alertsList">
+                    <!-- Alerts will be populated here -->
+                </div>
+            </div>
+        </div>
+
+        <div class="details-panel">
+            <h3>Device Details</h3>
+            <div class="device-details">
+                <div class="detail-item">
+                    <span>Select a device to view details</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Device Modal -->
+    <div id="addDeviceModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAddDeviceModal()">&times;</span>
+            <h2>Add New Device</h2>
+            <form id="addDeviceForm" onsubmit="handleAddDevice(event)">
+                <div class="form-group">
+                    <label for="deviceType">Device Type</label>
+                    <select id="deviceType" required>
+                        <option value="tank">Tank</option>
+                        <option value="pipeline">Pipeline</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="deviceLocation">Location</label>
+                    <select id="deviceLocation" required>
+                        <option value="hyderabad">Hyderabad</option>
+                        <option value="warangal">Warangal</option>
+                        <option value="karimnagar">Karimnagar</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn">Add Device</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Initialize map
+        const map = L.map('map-container').setView([17.3850, 78.4867], 7); // Telangana coordinates
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Location coordinates
+        const locations = {
+            hyderabad: [17.3850, 78.4867],
+            warangal: [17.9689, 79.5941],
+            karimnagar: [18.4386, 79.1288]
+        };
+
+        // Mock device data
+        const devices = [
+            {
+                id: 'TANK-001',
+                type: 'tank',
+                coordinates: locations.hyderabad,
+                status: 'active',
+                pressure: '2.4 MPa',
+                temperature: '24°C',
+                lastMaintenance: '2024-01-10',
+                location: 'Hyderabad',
+                alerts: []
+            },
+            {
+                id: 'PIPE-001',
+                type: 'pipeline',
+                coordinates: locations.warangal,
+                status: 'active',
+                pressure: '1.8 MPa',
+                temperature: '22°C',
+                lastMaintenance: '2024-01-12',
+                location: 'Warangal',
+                alerts: []
+            },
+            {
+                id: 'TANK-002',
+                type: 'tank',
+                coordinates: locations.karimnagar,
+                status: 'offline',
+                pressure: '0.0 MPa',
+                temperature: '20°C',
+                lastMaintenance: '2024-01-05',
+                location: 'Karimnagar',
+                alerts: ['Maintenance required']
+            }
+        ];
+
+        // Mock alerts data
+        const alerts = [
+            {
+                id: 1,
+                deviceId: 'TANK-002',
+                severity: 'high',
+                message: 'Critical pressure drop detected',
+                timestamp: '2024-01-20 10:30:00'
+            },
+            {
+                id: 2,
+                deviceId: 'PIPE-001',
+                severity: 'medium',
+                message: 'Temperature above normal range',
+                timestamp: '2024-01-20 09:15:00'
+            },
+            {
+                id: 3,
+                deviceId: 'TANK-001',
+                severity: 'low',
+                message: 'Routine maintenance due',
+                timestamp: '2024-01-19 14:20:00'
+            }
+        ];
+
+        // Store markers
+        const markers = new Map();
+
+        // Initialize the map with devices
+        function initializeMap() {
+            devices.forEach(device => {
+                const marker = createMarker(device);
+                markers.set(device.id, marker);
+            });
+        }
+
+        // Create a marker for a device
+        function createMarker(device) {
+            const markerElement = document.createElement('div');
+            markerElement.className = `custom-marker ${device.type}-marker`;
+
+            const icon = L.divIcon({
+                className: 'custom-marker-wrapper',
+                html: markerElement,
+                iconSize: [30, 30]
+            });
+
+            const marker = L.marker(device.coordinates, { icon })
+                .addTo(map)
+                .on('click', () => showDeviceDetails(device));
+
+            return marker;
+        }
+
+        // Show device details
+        function showDeviceDetails(device) {
+        const detailsPanel = document.querySelector('.device-details');
+        detailsPanel.innerHTML = `
+            <div class="detail-item">
+                <span>Device ID</span>
+                <span>${device.id}</span>
+            </div>
+            <div class="detail-item">
+                <span>Type</span>
+                <span>${device.type.charAt(0).toUpperCase() + device.type.slice(1)}</span>
+            </div>
+            <div class="detail-item">
+                <span>Location</span>
+                <span>${device.location}</span>
+            </div>
+            <div class="detail-item">
+                <span>Status</span>
+                <span class="status-indicator status-${device.status}">${device.status}</span>
+            </div>
+            <div class="detail-item">
+                <span>Pressure</span>
+                <span>${device.pressure}</span>
+            </div>
+            <div class="detail-item">
+                <span>Temperature</span>
+                <span>${device.temperature}</span>
+            </div>
+            <div class="detail-item">
+                <span>Last Maintenance</span>
+                <span>${device.lastMaintenance}</span>
+            </div>
+            ${device.alerts.length > 0 ? `
+                <div class="detail-item">
+                    <span>Alerts</span>
+                    <span class="status-indicator status-offline">${device.alerts.length} active</span>
+                </div>
+            ` : ''}
+            <div class="controls">
+                <button class="btn" onclick="toggleDeviceStatus('${device.id}')">
+                    ${device.status === 'active' ? 'Deactivate' : 'Activate'}
+                </button>
+                <button class="btn" onclick="showDeviceHistory('${device.id}')">View History</button>
+            </div>
+        `;
+    }
+
+    // Page navigation
+    function showPage(pageName) {
+        // Update active nav item
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        event.target.classList.add('active');
+
+        // Hide all pages
+        document.getElementById('devices-page').style.display = 'none';
+        document.getElementById('analytics-page').style.display = 'none';
+        document.getElementById('alerts-page').style.display = 'none';
+
+        // Show selected page
+        document.getElementById(`${pageName}-page`).style.display = 'block';
+
+        // Initialize page specific content
+        if (pageName === 'analytics') {
+            initializeAnalytics();
+        } else if (pageName === 'alerts') {
+            displayAlerts();
+        }
+    }
+
+    // Toggle device status
+    function toggleDeviceStatus(deviceId) {
+        const device = devices.find(d => d.id === deviceId);
+        if (device) {
+            device.status = device.status === 'active' ? 'offline' : 'active';
+            showDeviceDetails(device);
+            updateAnalytics();
+        }
+    }
+
+    // Show device history
+    function showDeviceHistory(deviceId) {
+        alert(`Showing history for device ${deviceId}`);
+    }
+
+    // Search devices
+    function searchDevices(query) {
+        query = query.toLowerCase();
+        devices.forEach(device => {
+            const marker = markers.get(device.id);
+            if (device.id.toLowerCase().includes(query) || 
+                device.type.toLowerCase().includes(query) ||
+                device.location.toLowerCase().includes(query)) {
+                marker.getElement().style.display = 'block';
+            } else {
+                marker.getElement().style.display = 'none';
+            }
+        });
+    }
+
+    // Modal functions
+    function openAddDeviceModal() {
+        document.getElementById('addDeviceModal').style.display = 'block';
+    }
+
+    function closeAddDeviceModal() {
+        document.getElementById('addDeviceModal').style.display = 'none';
+    }
+
+    // Handle adding new device
+    function handleAddDevice(event) {
+        event.preventDefault();
+        
+        const type = document.getElementById('deviceType').value;
+        const location = document.getElementById('deviceLocation').value;
+        
+        const newDevice = {
+            id: `${type.toUpperCase()}-${String(devices.length + 1).padStart(3, '0')}`,
+            type: type,
+            coordinates: locations[location],
+            status: 'active',
+            pressure: '0.0 MPa',
+            temperature: '20°C',
+            lastMaintenance: new Date().toISOString().split('T')[0],
+            location: location.charAt(0).toUpperCase() + location.slice(1),
+            alerts: []
+        };
+        
+        devices.push(newDevice);
+        const marker = createMarker(newDevice);
+        markers.set(newDevice.id, marker);
+        showDeviceDetails(newDevice);
+        closeAddDeviceModal();
+        updateAnalytics();
+    }
+
+    // Initialize Analytics
+    function initializeAnalytics() {
+        // Pressure Chart
+        const pressureCtx = document.getElementById('pressureChart').getContext('2d');
+        new Chart(pressureCtx, {
+            type: 'line',
+            data: {
+                labels: devices.map(d => d.id),
+                datasets: [{
+                    label: 'Pressure (MPa)',
+                    data: devices.map(d => parseFloat(d.pressure)),
+                    borderColor: '#2563eb',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Device Pressure Readings'
+                    }
+                }
+            }
+        });
+
+        // Temperature Chart
+        const temperatureCtx = document.getElementById('temperatureChart').getContext('2d');
+        new Chart(temperatureCtx, {
+            type: 'line',
+            data: {
+                labels: devices.map(d => d.id),
+                datasets: [{
+                    label: 'Temperature (°C)',
+                    data: devices.map(d => parseFloat(d.temperature)),
+                    borderColor: '#dc2626',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Device Temperature Readings'
+                    }
+                }
+            }
+        });
+
+        // Status Chart
+        const statusCtx = document.getElementById('statusChart').getContext('2d');
+        const statusData = {
+            active: devices.filter(d => d.status === 'active').length,
+            offline: devices.filter(d => d.status === 'offline').length
+        };
+        new Chart(statusCtx, {
+            type: 'pie',
+            data: {
+                labels: ['Active', 'Offline'],
+                datasets: [{
+                    data: [statusData.active, statusData.offline],
+                    backgroundColor: ['#059669', '#dc2626']
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Device Status Distribution'
+                    }
+                }
+            }
+        });
+
+        // Maintenance Chart
+        const maintenanceCtx = document.getElementById('maintenanceChart').getContext('2d');
+        new Chart(maintenanceCtx, {
+            type: 'bar',
+            data: {
+                labels: devices.map(d => d.id),
+                datasets: [{
+                    label: 'Days Since Last Maintenance',
+                    data: devices.map(d => {
+                        const maintDate = new Date(d.lastMaintenance);
+                        const today = new Date();
+                        return Math.floor((today - maintDate) / (1000 * 60 * 60 * 24));
+                    }),
+                    backgroundColor: '#1e40af'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Days Since Last Maintenance'
+                    }
+                }
+            }
+        });
+    }
+
+    // Display Alerts
+    function displayAlerts() {
+        const alertsList = document.getElementById('alertsList');
+        alertsList.innerHTML = alerts.map(alert => `
+            <div class="alert-item ${alert.severity}">
+                <h4>${alert.deviceId}: ${alert.message}</h4>
+                <p>Severity: ${alert.severity}</p>
+                <p>Time: ${alert.timestamp}</p>
+            </div>
+        `).join('');
+    }
+
+    // Update Analytics
+    function updateAnalytics() {
+        if (document.getElementById('analytics-page').style.display === 'block') {
+            initializeAnalytics();
+        }
+    }
+
+    // Simulate real-time updates
+    function startRealTimeUpdates() {
+        setInterval(() => {
+            devices.forEach(device => {
+                if (device.status === 'active') {
+                    device.pressure = (2 + Math.random() * 0.5).toFixed(1) + ' MPa';
+                    device.temperature = (22 + Math.random() * 4).toFixed(1) + '°C';
+                    
+                    // Update device details if currently selected
+                    const detailsPanel = document.querySelector('.device-details');
+                    if (detailsPanel.innerHTML.includes(device.id)) {
+                        showDeviceDetails(device);
+                    }
+
+                    // Update analytics if visible
+                    updateAnalytics();
+                }
+            });
+        }, 5000);
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('addDeviceModal');
+        if (event.target === modal) {
+            closeAddDeviceModal();
+        }
+    }
+
+    // Initialize application
+    window.onload = function() {
+        initializeMap();
+        startRealTimeUpdates();
+        // Show initial page
+        showPage('devices');
+    };
+</script>
+</body>
+</html>                
