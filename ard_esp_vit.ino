@@ -73,4 +73,56 @@ float getVoltage() {
 //esp8266 code with added reading diplay of voltage sensor reading
 
 
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+
+const char* ssid = "Galaxy M34 5G 288C";
+const char* password = "123456789";
+
+
+ESP8266WebServer server(80);  // Web server on port 80
+String distanceData = "Waiting for data...";
+
+// Function to read data from Arduino via Serial
+void readFromArduino() {
+  while (Serial.available() > 0) {
+    distanceData = Serial.readStringUntil('\n');  // Read data until newline
+  }
+}
+
+// Function to handle HTTP requests to the root "/"
+void handleRoot() {
+  String html = "<html><body><h1>Distance Measurement</h1>";
+  html += "<p>Distance: " + distanceData + " cm</p>";
+  html += "<p>Page refreshes every second.</p>";
+  html += "<script>setTimeout(function(){location.reload();}, 1000);</script>";
+  html += "</body></html>";
+  server.send(200, "text/html", html);
+}
+
+void setup() {
+  Serial.begin(9600);  // Initialize Serial for communication with Arduino
+  
+  // Initialize Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // Set up web server
+  server.on("/", handleRoot);
+  server.begin();
+  Serial.println("Web server started");
+}
+
+void loop() {
+  server.handleClient(); // Handle web server client requests
+  readFromArduino();     // Read latest data from the Arduino
+}
+
+
 
