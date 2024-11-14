@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Distance Sensor Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .form-container, .devices-list {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        #map {
+            height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .device-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #007bff;
+        }
+
+        .device-reading {
+            font-size: 1.2em;
+            margin-top: 8px;
+            color: #0056b3;
+        }
+
+        .device-reading.warning {
+            color: #dc3545;
+        }
+
+        .device-reading.good {
+            color: #28a745;
+        }
+
+        .timestamp {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <div class="form-container">
+                <h2>Add New Device</h2>
+                <form id="deviceForm">
+                    <div class="form-group">
+                        <label for="deviceId">Device ID</label>
+                        <input type="text" id="deviceId" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="latitude">Latitude</label>
+                        <input type="number" id="latitude" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="longitude">Longitude</label>
+                        <input type="number" id="longitude" step="any" required>
+                    </div>
+                    <button type="submit">Add Device</button>
+                </form>
+            </div>
+            <div class="devices-list" id="devicesList">
+                <h2>Device Readings</h2>
+            </div>
+        </div>
+        <div class="right-panel">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script type="module">
+        // Firebase configuration and initialization
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
+        import { getDatabase, ref, set, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqW4Y2YkqD7OniJzHLFj65R5iJxgGU_fc",
+            databaseURL: "https://arthydro-ebcb8-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "arthydro-ebcb8"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Initialize map
+        const map = L.map('map').setView([20.5937, 78.9629], 5); // Centered on India
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markers = {};
+
+        // Handle form submission
+        document.getElementById('deviceForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const deviceId = document.getElementById('deviceId').value;
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+
+            try {
+                await set(ref(db, `devices/${deviceId}/location`), {
+                    latitude,
+                    longitude
+                });
+                alert('Device location added successfully!');
+                e.target.reset();
+            } catch (error) {
+                console.error('Error adding device:', error);
+                alert('Error adding device. Please try again.');
+            }
+        });
+
+        // Function to parse distance data
+        function parseDistanceData(data) {
+            if (!data) return { distance: 0, voltage: 0 };
+            const distanceMatch = data.match(/D:(\d+\.?\d*)/);
+            const voltageMatch = data.match(/V:(\d+\.?\d*)/);
+            return {
+                distance: distanceMatch ? parseFloat(distanceMatch[1]) : 0,
+                voltage: voltageMatch ? parseFloat(voltageMatch[1]) : 0
+            };
+        }
+
+        // Function to format timestamp
+        function formatTimestamp(timestamp) {
+            return new Date(parseInt(timestamp)).toLocaleString();
+        }
+
+        // Listen for device updates
+        const devicesRef = ref(db, 'devices');
+        onValue(devicesRef, (snapshot) => {
+            const devices = snapshot.val();
+            const devicesList = document.getElementById('devicesList');
+            devicesList.innerHTML = '<h2>Device Readings</h2>';
+            
+            // Clear existing markers
+            Object.values(markers).forEach(marker => marker.remove());
+            
+            if (!devices) {
+                devicesList.innerHTML += '<p>No devices found</p>';
+                return;
+            }
+
+            // Process each device
+            Object.entries(devices).forEach(([deviceId, device]) => {
+                const deviceCard = document.createElement('div');
+                deviceCard.className = 'device-card';
+                
+                let cardContent = `<h3>Device: ${deviceId}</h3>`;
+
+                // Add location data if available
+                if (device.location) {
+                    const { latitude, longitude } = device.location;
+                    cardContent += `
+                        <div class="device-reading">
+                            Location: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}
+                        </div>
+                    `;
+
+                    // Add marker to map
+                    const marker = L.marker([latitude, longitude]);
+                    
+                    // Create popup content including sensor data if available
+                    let popupContent = `<b>Device: ${deviceId}</b><br>`;
+                    if (device.sensor_data) {
+                        const { distance } = parseDistanceData(device.sensor_data.distance);
+                        popupContent += `Distance: ${distance} cm<br>`;
+                        popupContent += `Updated: ${formatTimestamp(device.sensor_data.timestamp)}`;
+                    }
+                    
+                    marker.bindPopup(popupContent).addTo(map);
+                    markers[deviceId] = marker;
+                }
+
+                // Add sensor data if available
+                if (device.sensor_data) {
+                    const { distance, voltage } = parseDistanceData(device.sensor_data.distance);
+                    const timestamp = device.sensor_data.timestamp;
+
+                    cardContent += `
+                        <div class="device-reading ${distance > 50 ? 'warning' : 'good'}">
+                            Distance: ${distance} cm
+                        </div>
+                        <div class="device-reading">
+                            Voltage: ${voltage} V
+                        </div>
+                        <div class="timestamp">
+                            Last updated: ${formatTimestamp(timestamp)}
+                        </div>
+                    `;
+                } else {
+                    cardContent += `<div class="device-reading">No sensor data available</div>`;
+                }
+
+                deviceCard.innerHTML = cardContent;
+                devicesList.appendChild(deviceCard);
+            });
+        });
+    </script>
+</body>
+</html>
