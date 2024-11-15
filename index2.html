@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Device Management Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            display: flex;
+            min-height: 100vh;
+            background: #f0f2f5;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        .map-container {
+            flex: 1;
+            position: relative;
+            min-height: 400px;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .device-details {
+            position: fixed;
+            right: 20px;
+            top: 20px;
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 20px;
+            display: none;
+        }
+
+        .device-details.active {
+            display: block;
+        }
+
+        .readings-container {
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .reading-item {
+            margin: 10px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-online {
+            background: #28a745;
+        }
+
+        .status-offline {
+            background: #dc3545;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            width: auto;
+            padding: 5px;
+        }
+
+        .search-container {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .error-message {
+            color: #dc3545;
+            background: #f8d7da;
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div class="form-container">
+            <h2>Search Device</h2>
+            <div class="form-group">
+                <label for="searchDeviceId">Device ID</label>
+                <input type="text" id="searchDeviceId" placeholder="Enter device ID">
+            </div>
+            <button onclick="searchDevice()">Search</button>
+            <div class="error-message" id="searchError"></div>
+        </div>
+
+        <div class="form-container">
+            <h2>Add New Device</h2>
+            <form id="deviceForm" onsubmit="return addNewDevice(event)">
+                <div class="form-group">
+                    <label for="deviceId">Device ID</label>
+                    <input type="text" id="deviceId" required>
+                </div>
+                <div class="form-group">
+                    <label for="latitude">Latitude</label>
+                    <input type="number" id="latitude" step="any" required>
+                </div>
+                <div class="form-group">
+                    <label for="longitude">Longitude</label>
+                    <input type="number" id="longitude" step="any" required>
+                </div>
+                <button type="submit">Add Device</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+    </div>
+
+    <div class="device-details" id="deviceDetails">
+        <button class="close-button" onclick="closeDeviceDetails()">✕</button>
+        <h2>Device Details</h2>
+        <div class="readings-container">
+            <div class="reading-item">
+                <strong>Device ID: </strong>
+                <span id="detailDeviceId"></span>
+            </div>
+            <div class="reading-item">
+                <strong>Status: </strong>
+                <span id="detailStatus"></span>
+            </div>
+            <div class="reading-item">
+                <strong>Distance: </strong>
+                <span id="detailDistance"></span>
+            </div>
+            <div class="reading-item">
+                <strong>Voltage: </strong>
+                <span id="detailVoltage"></span>
+            </div>
+            <div class="reading-item">
+                <strong>Last Updated: </strong>
+                <span id="detailTimestamp"></span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.js"></script>
+    <script type="module">
+        // Import Firebase modules
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
+        import { getDatabase, ref, set, onValue, get } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
+
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqW4Y2YkqD7OniJzHLFj65R5iJxgGU_fc",
+            authDomain: "arthydro-ebcb8.firebaseapp.com",
+            databaseURL: "https://arthydro-ebcb8-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "arthydro-ebcb8",
+            storageBucket: "arthydro-ebcb8.firebasestorage.app",
+            messagingSenderId: "516606331411",
+            appId: "1:516606331411:web:217b34d22eb08324bbcde6",
+            measurementId: "G-4XCX4D7W9L"
+        };
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Initialize map
+        const map = L.map('map').setView([13.0827, 80.2707], 10); // Chennai coordinates
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markers = {};
+        let selectedDeviceRef = null;
+
+        // Parse sensor data
+        function parseSensorData(sensorString) {
+            if (!sensorString) return null;
+            const matches = sensorString.match(/D:(\d+);V:([\d.]+);/);
+            return matches ? {
+                distance: parseInt(matches[1]),
+                voltage: parseFloat(matches[2])
+            } : null;
+        }
+
+        // Check if device is online
+        function isDeviceOnline(timestamp) {
+            if (!timestamp) return false;
+            const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+            return timestamp > fiveMinutesAgo;
+        }
+
+        // Add new device
+        window.addNewDevice = async (event) => {
+            event.preventDefault();
+            
+            const deviceId = document.getElementById('deviceId').value;
+            const latitude = parseFloat(document.getElementById('latitude').value);
+            const longitude = parseFloat(document.getElementById('longitude').value);
+
+            try {
+                await set(ref(db, `devices/${deviceId}`), {
+                    location: {
+                        lat: latitude,
+                        lng: longitude
+                    },
+                    sensor_data: {
+                        distance: "D:0;V:0.00;",
+                        timestamp: Date.now()
+                    }
+                });
+
+                alert('Device added successfully!');
+                event.target.reset();
+            } catch (error) {
+                console.error('Error adding device:', error);
+                alert('Error adding device. Please try again.');
+            }
+        };
+
+        // Search for a device
+        window.searchDevice = async () => {
+            const deviceId = document.getElementById('searchDeviceId').value;
+            const errorElement = document.getElementById('searchError');
+            
+            try {
+                const snapshot = await get(ref(db, `devices/${deviceId}`));
+                if (snapshot.exists()) {
+                    const device = snapshot.val();
+                    map.setView([device.location.lat, device.location.lng], 15);
+                    showDeviceDetails(deviceId);
+                    errorElement.style.display = 'none';
+                } else {
+                    errorElement.textContent = 'Device not found';
+                    errorElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error searching device:', error);
+                errorElement.textContent = 'Error searching device';
+                errorElement.style.display = 'block';
+            }
+        };
+
+        // Show device details
+        function showDeviceDetails(deviceId) {
+            const deviceDetails = document.getElementById('deviceDetails');
+            deviceDetails.classList.add('active');
+
+            // Set device ID
+            document.getElementById('detailDeviceId').textContent = deviceId;
+
+            // Remove previous listener if exists
+            if (selectedDeviceRef) {
+                selectedDeviceRef();
+            }
+
+            // Listen for real-time updates
+            selectedDeviceRef = onValue(ref(db, `devices/${deviceId}/sensor_data`), (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    const sensorData = parseSensorData(data.distance);
+                    const online = isDeviceOnline(data.timestamp);
+
+                    document.getElementById('detailStatus').innerHTML = 
+                        `<span class="status-indicator status-${online ? 'online' : 'offline'}"></span>${online ? 'Online' : 'Offline'}`;
+                    document.getElementById('detailDistance').textContent = 
+                        sensorData ? `${sensorData.distance} units` : 'N/A';
+                    document.getElementById('detailVoltage').textContent = 
+                        sensorData ? `${sensorData.voltage}V` : 'N/A';
+                    document.getElementById('detailTimestamp').textContent = 
+                        new Date(data.timestamp).toLocaleString();
+                }
+            });
+        }
+
+        // Close device details
+        window.closeDeviceDetails = () => {
+            document.getElementById('deviceDetails').classList.remove('active');
+            if (selectedDeviceRef) {
+                selectedDeviceRef();
+                selectedDeviceRef = null;
+            }
+        };
+
+        // Initialize device markers
+        onValue(ref(db, 'devices'), (snapshot) => {
+            const devices = snapshot.val();
+            
+            // Clear existing markers
+            Object.values(markers).forEach(marker => marker.remove());
+            
+            // Add new markers
+            if (devices) {
+                Object.entries(devices).forEach(([deviceId, device]) => {
+                    if (device.location) {
+                        const marker = L.marker([device.location.lat, device.location.lng])
+                            .addTo(map)
+                            .on('click', () => showDeviceDetails(deviceId));
+
+                        // Create popup content
+                        const sensorData = parseSensorData(device.sensor_data?.distance);
+                        const online = isDeviceOnline(device.sensor_data?.timestamp);
+                        
+                        marker.bindPopup(`
+                            <div style="padding: 10px;">
+                                <h3>Device ${deviceId}</h3>
+                                <p>Status: ${online ? 'Online' : 'Offline'}</p>
+                                <p>Distance: ${sensorData ? sensorData.distance + ' units' : 'N/A'}</p>
+                                <p>Voltage: ${sensorData ? sensorData.voltage + 'V' : 'N/A'}</p>
+                            </div>
+                        `);
+                        
+                        markers[deviceId] = marker;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
