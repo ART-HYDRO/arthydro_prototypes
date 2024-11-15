@@ -1,4 +1,4 @@
-//ardino code remain same jsut change in the esp to connet to the device to fire base
+//ardino code remain same jsut change in the esp to connet the device to fire base
 
 
 #include <ESP8266WiFi.h>
