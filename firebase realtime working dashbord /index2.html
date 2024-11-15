@@ -94,14 +94,10 @@
         }
 
         .device-details {
-            position: fixed;
-            right: 20px;
-            top: 20px;
             width: 300px;
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             padding: 20px;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
             display: none;
         }
 
@@ -109,49 +105,37 @@
             display: block;
         }
 
+        .device-details h2 {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            width: auto;
+        }
+
         .readings-container {
-            margin-top: 15px;
-            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .reading-item {
+            padding: 10px;
             background: #f8f9fa;
             border-radius: 4px;
         }
 
-        .reading-item {
-            margin: 10px 0;
-            padding: 8px;
-            background: white;
-            border-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        .error-message.active {
+            display: block;
         }
-
-        .status-indicator {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .status-online {
-            background: #28a745;
-        }
-
-        .status-offline {
-            background: #dc3545;
-        }
-
-        .close-button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: none;
-            border: none;
-            color: #666;
-            cursor: pointer;
-            width: auto;
-            padding: 5px;
-        }
-
         .search-container {
             padding: 15px;
             background: white;
